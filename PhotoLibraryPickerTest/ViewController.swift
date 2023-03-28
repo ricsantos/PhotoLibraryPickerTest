@@ -108,29 +108,51 @@ extension ViewController: PHPickerViewControllerDelegate {
             }
             print("Load file representation Url - \(url)")
             
-            let fileExists = FileManager.default.fileExists(atPath: url.absoluteString)
+            let fileExists = FileManager.default.fileExists(atPath: url.path)
             if !fileExists {
                 print("🔥 File doesn't exist at path")
                 // Uncomment next 2 lines to return early with the picked Url (which doesn't play)
                 //wrapUp(url, nil)
                 //return
+            } else {
+                print("✅ File does exist!")
             }
             
             let paths = NSSearchPathForDirectoriesInDomains(.documentDirectory, .userDomainMask, true)
             let documentsDirectory: String = paths[0]
-            let copyUrl = URL(fileURLWithPath: documentsDirectory).appendingPathComponent("temp-dir").appendingPathComponent(url.lastPathComponent)
-            print("Will attempt to copy file to url: \(copyUrl)")
+            
+            let tempDirectoryUrl = URL(fileURLWithPath: documentsDirectory).appendingPathComponent("temp-dir")
+            
+            do {
+                try FileManager.default.createDirectory(atPath: tempDirectoryUrl.path, withIntermediateDirectories: true, attributes: nil)
+            } catch {
+                print("ERROR: \(error.localizedDescription)")
+                wrapUp(nil, error)
+            }
+            
+            let destinationUrl = tempDirectoryUrl.appendingPathComponent(url.lastPathComponent)
+            print("Will attempt to copy file to url: \(destinationUrl)")
             
             do {
                 // Important! You must copy the file url that you receive to a url in your sandbox, otherwise the contents of the file will disappear when this closure is exited.
-                try FileManager.default.copyItem(at: url, to: copyUrl)
+                try FileManager.default.copyItem(at: url, to: destinationUrl)
             } catch {
                 print("ERROR: Unable to copy file - \(error)")
+                let nsError = error as NSError
+                if nsError.domain == NSCocoaErrorDomain {
+                    print("NSCocoaErrorDomain, code: \(nsError.code)")
+                    if nsError.code == NSFileWriteFileExistsError {
+                        print("File already exists!")
+                        wrapUp(destinationUrl, error)
+                        return
+                    }
+                }
                 wrapUp(nil, error)
                 return
             }
             
             print("🎉 Success we copied the file")
+            wrapUp(destinationUrl, error)
         }
     }
 }
